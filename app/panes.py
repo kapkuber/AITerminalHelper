@@ -8,6 +8,7 @@ from textual.containers import Vertical
 class TerminalPane(Widget):
     """A minimalist terminal-like widget that accepts commands and streams output."""
     history: list[str] = []
+    _output_text: str = ""
 
     def compose(self) -> ComposeResult:
         yield Vertical(
@@ -16,7 +17,8 @@ class TerminalPane(Widget):
         )
 
     def on_mount(self):
-        self.query_one("#term_output", Static).update("[b]Ready.[/b]\n")
+        self._output_text = "[b]Ready.[/b]\n"
+        self.query_one("#term_output", Static).update(self._output_text)
         self.focus_input()
 
     def focus_input(self):
@@ -24,9 +26,9 @@ class TerminalPane(Widget):
 
     def write(self, text: str):
         out = self.query_one("#term_output", Static)
-        # append text (Static.renderable holds a Renderable; using str concatenation is fine for this skeleton)
-        current = out.renderable if out.renderable is not None else ""
-        out.update(current + text)
+        # Maintain our own buffer instead of reading widget internals
+        self._output_text += text
+        out.update(self._output_text)
 
 class AIPane(Widget):
     buffer = reactive("")
@@ -40,11 +42,11 @@ class AIPane(Widget):
 
     def update_text(self, text: str, append: bool = False):
         body = self.query_one("#ai_body", Static)
-        current = body.renderable if body.renderable is not None else ""
         if append:
-            body.update(current + text)
+            self.buffer += text
         else:
-            body.update(text)
+            self.buffer = text
+        body.update(self.buffer)
 
 class StatusBar(Footer):
     pass

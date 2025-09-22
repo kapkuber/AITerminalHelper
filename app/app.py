@@ -4,7 +4,6 @@ import os
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal
 from textual.binding import Binding
-from textual import work
 from .panes import TerminalPane, AIPane, StatusBar
 from .pty_runner import run_command_stream
 from .parsers.nmap_xml import parse_nmap_xml_text
@@ -76,7 +75,6 @@ class TextualAITerminal(App):
         # Start run in background
         self._current_task = asyncio.create_task(self._run_and_analyze(cmd))
 
-    @work
     async def _run_and_analyze(self, cmd: str):
         stdout_buf = []
         stderr_buf = []
