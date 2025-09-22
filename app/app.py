@@ -14,6 +14,8 @@ class TextualAITerminal(App):
     CSS = """
     Screen { layout: vertical; }
     Horizontal { height: 1fr; }
+    #left { width: 1fr; }
+    #right { width: 1fr; border-left: solid #555555; }
     #ai_body { height: 1fr; overflow: auto; }
     #term_output { height: 1fr; overflow: auto; }
     """
