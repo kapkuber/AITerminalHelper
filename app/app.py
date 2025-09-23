@@ -17,8 +17,8 @@ class TextualAITerminal(App):
     Horizontal { height: 1fr; }
     #left { width: 1fr; }
     #right { width: 1fr; border-left: solid #555555; }
-    #ai_body { height: 1fr; overflow: auto; }
-    #term_output { height: 1fr; overflow: auto; }
+    #ai_body { height: 1fr; overflow: auto; text-wrap: wrap; }
+    #term_output { height: 1fr; overflow: auto; text-wrap: wrap; }
     """
 
     BINDINGS = [
@@ -103,18 +103,27 @@ class TextualAITerminal(App):
             "structured_output": structured or {},
         }
 
-        # Stream AI analysis to right pane
+        # Stream AI analysis to right pane (throttled flush for speed)
         self.ai.update_text("")
         got_any = False
         try:
-            # Always show request info so something is visible
-            self.ai.update_text(
-                f"AI: POST {settings.ollama_host}/api/chat model={settings.ollama_model}\n",
-                append=True,
-            )
+            flush_buf: list[str] = []
+            loop = asyncio.get_running_loop()
+            last_flush = loop.time()
+            FLUSH_INTERVAL = 0.08  # seconds
+            FLUSH_BYTES = 600      # flush when buffer gets large
+
             async for delta in stream_analysis(payload):
                 got_any = True
-                self.ai.update_text(delta, append=True)
+                flush_buf.append(delta)
+                now = loop.time()
+                if sum(len(x) for x in flush_buf) >= FLUSH_BYTES or (now - last_flush) >= FLUSH_INTERVAL:
+                    self.ai.update_text("".join(flush_buf), append=True)
+                    flush_buf.clear()
+                    last_flush = now
+
+            if flush_buf:
+                self.ai.update_text("".join(flush_buf), append=True)
         except Exception as e:
             self.ai.update_text(f"\nAI error: {e}\n", append=True)
         finally:
@@ -129,3 +138,4 @@ class TextualAITerminal(App):
 if __name__ == "__main__":
     app = TextualAITerminal()
     app.run()
+

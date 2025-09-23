@@ -55,7 +55,8 @@ async def stream_analysis(payload: Dict[str, Any]) -> AsyncIterator[str]:
     }
 
     async with httpx.AsyncClient(timeout=settings.read_timeout_secs) as client:
-        if os.getenv("AI_DEBUG"):
+        # Keep initial debug quiet unless explicitly asked
+        if os.getenv("AI_DEBUG_VERBOSE"):
             yield f"(debug) POST {url} model={settings.ollama_model} stream=True\n"
         yielded_any = False
         async with client.stream("POST", url, json=req) as resp:
@@ -70,7 +71,7 @@ async def stream_analysis(payload: Dict[str, Any]) -> AsyncIterator[str]:
                     obj = json.loads(raw)
                 except json.JSONDecodeError:
                     # Optional debug of raw line
-                    if os.getenv("AI_DEBUG"):
+                    if os.getenv("AI_DEBUG_VERBOSE"):
                         yield f"(debug) non-json line: {raw}\n"
                     continue
 
@@ -103,7 +104,7 @@ async def stream_analysis(payload: Dict[str, Any]) -> AsyncIterator[str]:
 
         # Fallback: if nothing yielded (some servers send only a final object), do non-stream
         if not yielded_any:
-            if os.getenv("AI_DEBUG"):
+            if os.getenv("AI_DEBUG_VERBOSE"):
                 yield "(debug) no streamed chunks; trying non-stream fallback\n"
             r = await client.post(url, json={**req, "stream": False})
             r.raise_for_status()
@@ -118,7 +119,7 @@ async def stream_analysis(payload: Dict[str, Any]) -> AsyncIterator[str]:
                     text = data.get("content")
             if text:
                 yield text
-            elif os.getenv("AI_DEBUG"):
+            elif os.getenv("AI_DEBUG_VERBOSE"):
                 try:
                     yield f"(debug) final object keys: {list(data.keys())}\n"
                 except Exception:
