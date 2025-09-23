@@ -10,6 +10,7 @@ from .parsers.nmap_xml import parse_nmap_xml_text
 from .ai.ollama_client import stream_analysis
 from .config import settings
 
+
 class TextualAITerminal(App):
     CSS = """
     Screen { layout: vertical; }
@@ -21,14 +22,12 @@ class TextualAITerminal(App):
     """
 
     BINDINGS = [
-        Binding("f2", "toggle_safe_mode", "Toggle Safe Mode"),
         Binding("ctrl+c", "cancel_running", "Cancel Running"),
         Binding("ctrl+q", "quit", "Quit"),
     ]
 
     def __init__(self):
         super().__init__()
-        self.safe_mode = settings.safe_mode
         self._current_task: asyncio.Task | None = None
 
     def compose(self) -> ComposeResult:
@@ -41,26 +40,19 @@ class TextualAITerminal(App):
 
     def on_mount(self):
         self.update_status()
-        # Hook input submit by watching Input (Textual's Input widget fires events)
         input_widget = self.term.query_one("#cmd_input")
         input_widget.can_focus = True
 
     def update_status(self):
-        mode = "SAFE" if self.safe_mode else "AGGRESSIVE"
-        self.sub_title = f"Model: {settings.ollama_model} • Mode: {mode}"
-
-    def action_toggle_safe_mode(self):
-        self.safe_mode = not self.safe_mode
-        self.update_status()
-        self.ai.update_text(f"Safe mode set to {self.safe_mode}\n")
+        self.sub_title = f"Model: {settings.ollama_model}"
 
     def action_cancel_running(self):
         if self._current_task and not self._current_task.done():
             self._current_task.cancel()
-            self.term.write("\n[red]Cancelled current command.[/red]\n")
+            self.term.write("\nCancelled current command.\n")
 
     async def on_input_submitted(self, event):
-        """Textual Input submitted handler — input event object contains value."""
+        """Textual Input submitted handler: event has .value"""
         value = event.value if hasattr(event, "value") else ""
         await self.on_submit(value)
 
@@ -68,18 +60,16 @@ class TextualAITerminal(App):
         cmd = value.strip()
         if not cmd:
             return
-        # clear input for next command
         input_widget = self.term.query_one("#cmd_input")
         input_widget.value = ""
         self.term.history.append(cmd)
-        self.term.write(f"\n[b]> {cmd}[/b]\n")
-        self.ai.update_text("Analyzing…\n")
-        # Start run in background
+        self.term.write(f"\n> {cmd}\n")
+        self.ai.update_text("Analyzing...\n")
         self._current_task = asyncio.create_task(self._run_and_analyze(cmd))
 
     async def _run_and_analyze(self, cmd: str):
-        stdout_buf = []
-        stderr_buf = []
+        stdout_buf: list[str] = []
+        stderr_buf: list[str] = []
         try:
             async for stream, chunk in run_command_stream(cmd):
                 if stream == "stdout":
@@ -97,7 +87,6 @@ class TextualAITerminal(App):
         if "<nmaprun" in stdout_text:
             structured = parse_nmap_xml_text(stdout_text).model_dump()
         else:
-            # naive: if command contains -oX <file>, try to open it
             try:
                 parts = cmd.split()
                 if "-oX" in parts:
@@ -112,17 +101,30 @@ class TextualAITerminal(App):
         payload = {
             "command": cmd,
             "structured_output": structured or {},
-            "policy": {"safe_mode": self.safe_mode},
         }
 
-        # 3) Stream AI analysis to right pane
+        # Stream AI analysis to right pane
         self.ai.update_text("")
+        got_any = False
         try:
+            # Always show request info so something is visible
+            self.ai.update_text(
+                f"AI: POST {settings.ollama_host}/api/chat model={settings.ollama_model}\n",
+                append=True,
+            )
             async for delta in stream_analysis(payload):
+                got_any = True
                 self.ai.update_text(delta, append=True)
         except Exception as e:
-            self.ai.update_text(f"\n[red]AI error: {e}[/red]\n")
-        self.ai.update_text("\n")
+            self.ai.update_text(f"\nAI error: {e}\n", append=True)
+        finally:
+            if not got_any:
+                self.ai.update_text(
+                    "\n(no AI tokens received — check OLLAMA_HOST/OLLAMA_MODEL or set AI_DEBUG=1)\n",
+                    append=True,
+                )
+            self.ai.update_text("\n", append=True)
+
 
 if __name__ == "__main__":
     app = TextualAITerminal()

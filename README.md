@@ -35,7 +35,7 @@ python -m app.app
 ## Usage
 - Type commands in the left terminal pane (e.g., `nmap -sn 192.168.1.0/24 -oX sweep.xml`).
 - If an nmap XML file is detected, the parser summarizes hosts; the right pane asks the LLM for device IDs and safe next steps.
-- Press `F2` to toggle **Safe Mode** on/off (off enables more aggressive enumeration tips, still no exploit payloads by default).
+- The right pane streams AI context and suggestions; there is no Safe Mode toggle.
 - Press `Ctrl+C` inside the terminal to stop a running command.
 
 
@@ -43,7 +43,6 @@ python -m app.app
 Env vars:
 - `OLLAMA_HOST` (default `http://127.0.0.1:11434`)
 - `OLLAMA_MODEL` (default `llama3.1`)
-- `SAFE_MODE` (default `1`)
 - `READ_TIMEOUT_SECS` (default `60`)
 
 

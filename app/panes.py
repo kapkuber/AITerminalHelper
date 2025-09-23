@@ -1,5 +1,6 @@
 from __future__ import annotations
 from textual.widgets import Static, Input, Footer
+import re
 try:
     # Newer Textual versions
     from textual.widgets import TextLog as _TextLog
@@ -13,6 +14,13 @@ except ImportError:
         except Exception:
             _TextLog = None  # Last resort; will raise at runtime if missing
 TextLog = _TextLog
+
+_TAG_RE = re.compile(r"\[(?:/?[a-zA-Z]+)(?:=[^\]]+)?\]")
+def _strip_markup(text: str) -> str:
+    try:
+        return _TAG_RE.sub("", text)
+    except Exception:
+        return text
 from textual.reactive import reactive
 from textual.app import ComposeResult
 from textual.widget import Widget
@@ -34,10 +42,6 @@ class TerminalPane(Widget):
             term.clear()
         except Exception:
             pass
-        try:
-            term.write("[b]Ready.[/b]\n")
-        except Exception:
-            term.write("Ready.\n")
         self.focus_input()
 
     def focus_input(self):
@@ -45,10 +49,10 @@ class TerminalPane(Widget):
 
     def write(self, text: str):
         out = self.query_one("#term_output", TextLog)
+        text = _strip_markup(text)
         try:
             out.write(text)
         except Exception:
-            # Some versions only accept strings without newlines; degrade gracefully
             for line in text.splitlines(True):
                 out.write(line)
 
@@ -69,7 +73,7 @@ class AIPane(Widget):
                 body.clear()
             except Exception:
                 pass
-        body.write(text)
+        body.write(_strip_markup(text))
 
 class StatusBar(Footer):
     pass
